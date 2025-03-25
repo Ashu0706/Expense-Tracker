@@ -61,7 +61,7 @@ def category(category : schema.Category,db : Session = Depends(get_db)):
         return "Category Already Exist"
     
     
-@app.get("/expenses/{category}")
+@app.get("/expense/{category}")
 def search_by_category(category, db : Session = Depends(get_db)):
     fetch_category = db.query(models.Expense).filter(models.Expense.category_name == category).all()
     # Extract amounts from the fetched expenses
@@ -69,12 +69,28 @@ def search_by_category(category, db : Session = Depends(get_db)):
 
     return {"category": category, "Total Expense": sum(amounts)}
 
-@app.get("/expenses/{date}")
+@app.get("/expense/{date}")
 def search_by_category(date, db : Session = Depends(get_db)):
     fetch_date = db.query(models.Expense).filter(models.Expense.date == date).all()
+    
     # Extract amounts from the fetched expenses
     amounts = [item.amount for item in fetch_date]
 
-    return {"date": date, "Total Expense": sum(amounts)}
+    return {"date": date, "Total Expense": amounts}
 
+
+
+@app.delete("/expenses/{expense_id}")
+def delete_expense(expense_id,db : Session = Depends(get_db)):
+    expense = db.query(models.Expense).filter(models.Expense.id == expense_id).first()
+    
+    if not expense:
+        return {"error": "Expense not found"}
+    
+    # Delete the expense
+    db.delete(expense)
+    db.commit()
+    
+    return {"message": "Expense deleted successfully"}
+        
     

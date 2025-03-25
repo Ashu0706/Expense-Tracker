@@ -1,0 +1,11 @@
+# Ignore compiled Python files
+*.pyc
+*.pyo
+*.cpython-*
+
+# Ignore virtual environment
+venv/
+env/
+
+# Ignore VS Code workspace settings
+.vscode/
