@@ -4,6 +4,7 @@ from database import get_db
 import database
 import models
 import schema
+from sqlalchemy import extract
 
 app = FastAPI()
 
@@ -81,7 +82,7 @@ def search_by_category(date, db : Session = Depends(get_db)):
 
 
 @app.delete("/expenses/{expense_id}")
-def delete_expense(expense_id,db : Session = Depends(get_db)):
+def delete_expense(expense_id : int, db : Session = Depends(get_db)):
     expense = db.query(models.Expense).filter(models.Expense.id == expense_id).first()
     
     if not expense:
@@ -92,5 +93,49 @@ def delete_expense(expense_id,db : Session = Depends(get_db)):
     db.commit()
     
     return {"message": "Expense deleted successfully"}
+
+
+@app.get("/monthly_expenses/{month}")
+def monthly_expense(month : str, db : Session = Depends(get_db)):
+    
+    # month dictionary to change user input to int as months sequence
+    months_dict = {
+    1: 1, "Jan": 1, "jan": 1, "January": 1, "january": 1,
+    2: 2, "Feb": 2, "feb": 2, "February": 2, "february": 2,
+    3: 3, "Mar": 3, "mar": 3, "March": 3, "march": 3,
+    4: 4, "Apr": 4, "apr": 4, "April": 4, "april": 4,
+    5: 5, "May": 5, "may": 5,
+    6: 6, "Jun": 6, "jun": 6, "June": 6, "june": 6,
+    7: 7, "Jul": 7, "jul": 7, "July": 7, "july": 7,
+    8: 8, "Aug": 8, "aug": 8, "August": 8, "august": 8,
+    9: 9, "Sep": 9, "sep": 9, "September": 9, "september": 9,
+    10: 10, "Oct": 10, "oct": 10, "October": 10, "october": 10,
+    11: 11, "Nov": 11, "nov": 11, "November": 11, "november": 11,
+    12: 12, "Dec": 12, "dec": 12, "December": 12, "december": 12
+    }
+    
+    month = months_dict[month]
+    
+    # All the expense on particular month
+    expense = db.query(models.Expense).filter(extract('month', models.Expense.date) == month).all()
+    
+    # if no expense 
+    if not expense:
+        return "Your Expense is 0"
+    
+    # Total monthly expense
+    total_expense_this_month  = sum([item.amount for item in expense])
+    
+    # All category 
+    all_category = [item.category_name for item in expense]
+    
+    # Stores category wise expense
+    category_wise_expense = {}
+    for cat in all_category:
+        amount = sum([item.amount for item in expense if item.category_name == cat])
+        category_wise_expense[cat] = amount
         
+    return {
+        "Total monthly Expense" : total_expense_this_month ,                "category_wise_expense" : category_wise_expense
+        }
     
