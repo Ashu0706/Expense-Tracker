@@ -1,4 +1,4 @@
-from fastapi import FastAPI,Depends
+from fastapi import FastAPI,Depends, Response
 from requests import Session
 from database import get_db
 import database
@@ -13,7 +13,7 @@ models.Base.metadata.create_all(bind=database.engine)
 
 
 @app.post("/add_expense/")
-def add_expense(expense : schema.ExpenseCreate, db : Session = Depends(get_db)):
+async def add_expense(expense : schema.ExpenseCreate, db : Session = Depends(get_db)):
     # Check if category exists
     category = db.query(models.Category).filter(models.Category.name == expense.category_name).first()
     
@@ -37,17 +37,17 @@ def add_expense(expense : schema.ExpenseCreate, db : Session = Depends(get_db)):
     return {"item added sucessfull": exp}
 
 @app.get("/show_expense/")
-def show_expense(db : Session = Depends(get_db)):
+async def show_expense(db : Session = Depends(get_db)):
     fetch_exp = db.query(models.Expense).all()
     return fetch_exp
 
 @app.get("/categories/")
-def category(db : Session = Depends(get_db)):
+async def category(db : Session = Depends(get_db)):
     all_category = db.query(models.Category).all()
     return all_category
 
 @app.post("/categories/")
-def category(category : schema.Category,db : Session = Depends(get_db)):
+async def category(category : schema.Category,db : Session = Depends(get_db)):
     # Check if category already exist
     fetch_category = db.query(models.Category).filter(models.Category.name == category.name).first()
     
@@ -63,7 +63,7 @@ def category(category : schema.Category,db : Session = Depends(get_db)):
     
     
 @app.get("/expense/{category}")
-def search_by_category(category, db : Session = Depends(get_db)):
+async def search_by_category(category, db : Session = Depends(get_db)):
     fetch_category = db.query(models.Expense).filter(models.Expense.category_name == category).all()
     # Extract amounts from the fetched expenses
     amounts = [item.amount for item in fetch_category]
@@ -71,7 +71,7 @@ def search_by_category(category, db : Session = Depends(get_db)):
     return {"category": category, "Total Expense": sum(amounts)}
 
 @app.get("/expense/{date}")
-def search_by_category(date, db : Session = Depends(get_db)):
+async def search_by_category(date, db : Session = Depends(get_db)):
     fetch_date = db.query(models.Expense).filter(models.Expense.date == date).all()
     
     # Extract amounts from the fetched expenses
@@ -82,7 +82,7 @@ def search_by_category(date, db : Session = Depends(get_db)):
 
 
 @app.delete("/expenses/{expense_id}")
-def delete_expense(expense_id : int, db : Session = Depends(get_db)):
+async def delete_expense(expense_id : int, db : Session = Depends(get_db)):
     expense = db.query(models.Expense).filter(models.Expense.id == expense_id).first()
     
     if not expense:
@@ -96,7 +96,7 @@ def delete_expense(expense_id : int, db : Session = Depends(get_db)):
 
 
 @app.get("/monthly_expenses/{month}")
-def monthly_expense(month : str, db : Session = Depends(get_db)):
+async def monthly_expense(month : str, db : Session = Depends(get_db)):
     
     # month dictionary to change user input to int as months sequence
     months_dict = {
@@ -138,4 +138,3 @@ def monthly_expense(month : str, db : Session = Depends(get_db)):
     return {
         "Total monthly Expense" : total_expense_this_month ,                "category_wise_expense" : category_wise_expense
         }
-    
