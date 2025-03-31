@@ -12,6 +12,10 @@ class ExpenseCreate(BaseModel):
 class Category(BaseModel):
     name : str
     
+class LoginRequest(BaseModel):
+    username : str
+    password : str
+    
 
 
     

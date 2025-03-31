@@ -1,16 +1,24 @@
-from fastapi import FastAPI,Depends, Response
+import base64
+import io
+from fastapi import FastAPI,Depends, Response, UploadFile
 from requests import Session
 from database import get_db
 import database
 import models
 import schema
 from sqlalchemy import extract
+import fitz
+from auth import auth_router
 
 app = FastAPI()
+
 
 # Create database tables
 models.Base.metadata.create_all(bind=database.engine)
 
+
+# Include the routes
+app.include_router(auth_router)
 
 @app.post("/add_expense/")
 async def add_expense(expense : schema.ExpenseCreate, db : Session = Depends(get_db)):
@@ -138,3 +146,37 @@ async def monthly_expense(month : str, db : Session = Depends(get_db)):
     return {
         "Total monthly Expense" : total_expense_this_month ,                "category_wise_expense" : category_wise_expense
         }
+    
+    
+@app.post("/upload/")
+async def file_upload(file : UploadFile, db : Session = Depends(get_db)):
+    file_content = await file.read()  # Read file content as binary
+    new_file = models.FileModel(
+                            file_name=file.filename, 
+                            file_content=file_content
+                            )
+    db.add(new_file)
+    db.commit()
+    db.refresh(new_file)
+    return "file uploaded sucessfully"
+
+@app.get("/file/{id}")
+async def fetch_file(id : int, db : Session = Depends(get_db)):
+    # fetch = db.query(models.FileModel).filter(models.FileModel.file_id == id).all()
+    # encoded_image = base64.b64encode(fetch).decode("utf-8")
+    # return encoded_image
+    image = db.get(models.FileModel, id)
+    if not image:
+        return {"error": "Image not found"}
+
+    #encoded_image = base64.b64encode(image.file_content).decode("utf-8")
+    
+    file_stream = io.BytesIO(image.file_content)
+    pdf_file = fitz.open(stream=file_stream,filetype="pdf")
+    
+    return pdf_file
+    
+    return Response(content=f'<img src="data:image/jpeg;base64,{encoded_image}" />', media_type="text/html")
+
+    
+
