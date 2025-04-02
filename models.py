@@ -15,30 +15,33 @@ class Category(Base):
 class User(Base):
     __tablename__ = "user"
     
-    username = Column(String, primary_key=True)
+    id = Column(Integer,primary_key=True,index=True)
+    username = Column(String,unique=True)
     password = Column(String)
     full_name = Column(String)
     email = Column(String)
+    
+    expense = relationship("Expense", back_populates="user")
     
 class Expense(Base):
     __tablename__ = "expenses"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("user.username"))
+    user_id = Column(Integer, ForeignKey("user.id"))
     category_name = Column(String, ForeignKey("categories.name"))
     name = Column(Text, nullable=False)
     amount = Column(DECIMAL(10, 2))
     date = Column(Date)
     description = Column(Text, nullable=True)
 
-    user = relationship("User")
+    user = relationship("User", back_populates="expense")
     category = relationship("Category")
     
 class Budget(Base):
     __tablename__ = "budgets"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("user.username"))
+    user_id = Column(Integer, ForeignKey("user.id"))
     category_name = Column(String, ForeignKey("categories.name"))
     budget_amount = Column(DECIMAL(10, 2))
 

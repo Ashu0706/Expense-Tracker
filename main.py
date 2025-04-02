@@ -9,6 +9,8 @@ import schema
 from sqlalchemy import extract
 import fitz
 from auth import auth_router
+from auth import get_current_user
+
 
 app = FastAPI()
 
@@ -21,7 +23,10 @@ models.Base.metadata.create_all(bind=database.engine)
 app.include_router(auth_router)
 
 @app.post("/add_expense/")
-async def add_expense(expense : schema.ExpenseCreate, db : Session = Depends(get_db)):
+async def add_expense(expense : schema.ExpenseCreate,
+                      db : Session = Depends(get_db),
+                      current_user: schema.User = Depends(get_current_user)):
+    
     # Check if category exists
     category = db.query(models.Category).filter(models.Category.name == expense.category_name).first()
     
@@ -33,9 +38,10 @@ async def add_expense(expense : schema.ExpenseCreate, db : Session = Depends(get
         db.refresh(category)
         
     # Add expense to table  
-    exp = models.Expense(name = expense.name, 
+    exp = models.Expense(name = expense.name,
+                         user_id = current_user.id,
                          amount = expense.amount, 
-                        date = expense.date, 
+                         date = expense.date, 
                          description = expense.description, 
                          category_name = expense.category_name
                          )
@@ -45,17 +51,24 @@ async def add_expense(expense : schema.ExpenseCreate, db : Session = Depends(get
     return {"item added sucessfull": exp}
 
 @app.get("/show_expense/")
-async def show_expense(db : Session = Depends(get_db)):
-    fetch_exp = db.query(models.Expense).all()
+async def show_expense(db : Session = Depends(get_db),
+                       current_user: schema.User = Depends(get_current_user)):
+    
+    fetch_exp = db.query(models.Expense).filter(models.Expense.user_id == current_user.id).all()
     return fetch_exp
 
 @app.get("/categories/")
-async def category(db : Session = Depends(get_db)):
+async def category(db : Session = Depends(get_db),
+                   current_user: schema.User = Depends(get_current_user)):
+    
     all_category = db.query(models.Category).all()
     return all_category
 
 @app.post("/categories/")
-async def category(category : schema.Category,db : Session = Depends(get_db)):
+async def category(category : schema.Category,
+                   db : Session = Depends(get_db),
+                   current_user: schema.User = Depends(get_current_user)):
+    
     # Check if category already exist
     fetch_category = db.query(models.Category).filter(models.Category.name == category.name).first()
     
@@ -71,8 +84,13 @@ async def category(category : schema.Category,db : Session = Depends(get_db)):
     
     
 @app.get("/expense/{category}")
-async def search_by_category(category, db : Session = Depends(get_db)):
-    fetch_category = db.query(models.Expense).filter(models.Expense.category_name == category).all()
+async def search_by_category(category, db : Session = Depends(get_db),
+                             current_user: schema.User = Depends(get_current_user)):
+    
+    fetch_category = db.query(
+                            models.Expense).filter(models.Expense.category_name == category,
+                            models.Expense.user_id == current_user.id).all()
+        
     # Extract amounts from the fetched expenses
     amounts = [item.amount for item in fetch_category]
 
@@ -90,8 +108,13 @@ async def search_by_category(date, db : Session = Depends(get_db)):
 
 
 @app.delete("/expenses/{expense_id}")
-async def delete_expense(expense_id : int, db : Session = Depends(get_db)):
-    expense = db.query(models.Expense).filter(models.Expense.id == expense_id).first()
+async def delete_expense(expense_id : int,
+                         db : Session = Depends(get_db),
+                         current_user: schema.User = Depends(get_current_user)):
+    
+    expense = db.query(models.Expense).filter(
+        models.Expense.id == expense_id,
+        models.Expense.user_id == current_user.id).first()
     
     if not expense:
         return {"error": "Expense not found"}
@@ -104,7 +127,9 @@ async def delete_expense(expense_id : int, db : Session = Depends(get_db)):
 
 
 @app.get("/monthly_expenses/{month}")
-async def monthly_expense(month : str, db : Session = Depends(get_db)):
+async def monthly_expense(month : str,
+                          db : Session = Depends(get_db),
+                          current_user: schema.User = Depends(get_current_user)):
     
     # month dictionary to change user input to int as months sequence
     months_dict = {
@@ -125,7 +150,9 @@ async def monthly_expense(month : str, db : Session = Depends(get_db)):
     month = months_dict[month]
     
     # All the expense on particular month
-    expense = db.query(models.Expense).filter(extract('month', models.Expense.date) == month).all()
+    expense = db.query(models.Expense).filter(
+                extract('month', models.Expense.  date) == month,
+                models.Expense.user_id == current_user.id).all()
     
     # if no expense 
     if not expense:
