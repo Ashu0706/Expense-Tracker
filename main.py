@@ -1,6 +1,9 @@
 import base64
 import io
-from fastapi import FastAPI,Depends, Response, UploadFile
+from fastapi import FastAPI,Depends, HTTPException, Request, Response, UploadFile ,status
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from requests import Session
 from database import get_db
 import database
@@ -14,6 +17,11 @@ from auth import get_current_user
 
 app = FastAPI()
 
+# Mount static files (for JS, CSS, images, etc.)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Configure Jinja2 templates
+templates = Jinja2Templates(directory="templates")
 
 # Create database tables
 models.Base.metadata.create_all(bind=database.engine)
@@ -22,7 +30,32 @@ models.Base.metadata.create_all(bind=database.engine)
 # Include the routes
 app.include_router(auth_router)
 
-@app.post("/add_expense/")
+
+@app.get("/")
+def home(request: Request):
+    return templates.TemplateResponse("index.html",{"request": request})
+
+@app.get("/login")
+def home(request: Request):
+    return templates.TemplateResponse("login.html",{"request": request})
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard(request: Request, db: Session = Depends(get_db)):
+    token = request.cookies.get("access_token")
+    if not token:
+        return RedirectResponse("/login", status_code=status.HTTP_302_FOUND)
+
+    try:
+        current_user = get_current_user(token=token.split("Bearer ")[1],db=db)
+        return templates.TemplateResponse("dashboard.html", {"request": request, "user": current_user})
+    
+    except HTTPException:
+        return RedirectResponse("/login", status_code=status.HTTP_302_FOUND)
+
+    
+
+@app.post("/add_expense")
 async def add_expense(expense : schema.ExpenseCreate,
                       db : Session = Depends(get_db),
                       current_user: schema.User = Depends(get_current_user)):
@@ -50,7 +83,7 @@ async def add_expense(expense : schema.ExpenseCreate,
     db.refresh(exp)
     return {"item added sucessfull": exp}
 
-@app.get("/show_expense/")
+@app.get("/show_expense")
 async def show_expense(db : Session = Depends(get_db),
                        current_user: schema.User = Depends(get_current_user)):
     
@@ -64,7 +97,7 @@ async def category(db : Session = Depends(get_db),
     all_category = db.query(models.Category).all()
     return all_category
 
-@app.post("/categories/")
+@app.post("/categories")
 async def category(category : schema.Category,
                    db : Session = Depends(get_db),
                    current_user: schema.User = Depends(get_current_user)):
@@ -204,6 +237,3 @@ async def fetch_file(id : int, db : Session = Depends(get_db)):
     return pdf_file
     
     return Response(content=f'<img src="data:image/jpeg;base64,{encoded_image}" />', media_type="text/html")
-
-    
-

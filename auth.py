@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, FastAPI, HTTPException
+from fastapi import APIRouter, Depends, FastAPI, Form, HTTPException, Request
+from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 import jwt
 from passlib.context import CryptContext
@@ -36,11 +37,13 @@ def create_access_token(data: dict, expires_delta: timedelta):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-def get_current_user(token: str = Depends(oauth2_scheme), db : Session = Depends(get_db)):
-    try:
+def get_current_user(token: str = Depends(oauth2_scheme) , db : Session = Depends(get_db)):
+    try:    
         payload = jwt.decode(token,SECRET_KEY,algorithms=[ALGORITHM])
         username = payload.get("sub")
+        print(username)
         if username is None:
+            print("no username")
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication credentials")
         
         user = db.query(models.User).filter(models.User.username == username).first()
@@ -54,19 +57,24 @@ def get_current_user(token: str = Depends(oauth2_scheme), db : Session = Depends
     
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+      
 
-@auth_router.post("/token/")
-def login(credentials : OAuth2PasswordRequestForm = Depends(), db : Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.username == credentials.username).first()
+@auth_router.post("/login")
+def login(request: Request, username: str = Form(...), password: str = Form(...), db : Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.username == username).first()
     1
-    if not user or not verify_password(credentials.password,user.password):
+    if not user or not verify_password(password,user.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password")
     
     access_token = create_access_token(data={"sub": user.username}, expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-        
-    return {"access_token": access_token, "token_type": "bearer"}
     
-@auth_router.post("/signin/")
+    response = RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    response.set_cookie(key="access_token", value=f"Bearer {access_token}", httponly=True)
+        
+    return response
+
+    
+@auth_router.post("/signin")
 def create_user(user: schema.UserCreate, db : Session = Depends(get_db)):
     hashed_password = hash_password(user.password)
     
@@ -79,8 +87,8 @@ def create_user(user: schema.UserCreate, db : Session = Depends(get_db)):
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    return "User created sucessfully"
+    return {"message":"User created sucessfully"}
 
-@auth_router.get("/me")
+@auth_router.get("/profile")
 def read_users_me(current_user: models.User = Depends(get_current_user)):
     return {"username": current_user.username, "email": current_user.email}
