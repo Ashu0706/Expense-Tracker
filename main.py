@@ -17,11 +17,6 @@ from auth import get_current_user
 
 app = FastAPI()
 
-# Mount static files (for JS, CSS, images, etc.)
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-# Configure Jinja2 templates
-templates = Jinja2Templates(directory="templates")
 
 # Create database tables
 models.Base.metadata.create_all(bind=database.engine)
@@ -31,57 +26,36 @@ models.Base.metadata.create_all(bind=database.engine)
 app.include_router(auth_router)
 
 
-@app.get("/")
-def home(request: Request):
-    return templates.TemplateResponse("index.html",{"request": request})
-
-@app.get("/login")
-def home(request: Request):
-    return templates.TemplateResponse("login.html",{"request": request})
-
-
-@app.get("/dashboard", response_class=HTMLResponse)
-async def dashboard(request: Request, db: Session = Depends(get_db)):
-    token = request.cookies.get("access_token")
-    if not token:
-        return RedirectResponse("/login", status_code=status.HTTP_302_FOUND)
-
-    try:
-        current_user = get_current_user(token=token.split("Bearer ")[1],db=db)
-        return templates.TemplateResponse("dashboard.html", {"request": request, "user": current_user})
-    
-    except HTTPException:
-        return RedirectResponse("/login", status_code=status.HTTP_302_FOUND)
-
-    
-
 @app.post("/add_expense")
-async def add_expense(expense : schema.ExpenseCreate,
-                      db : Session = Depends(get_db),
-                      current_user: schema.User = Depends(get_current_user)):
-    
+async def add_expense(  expense : schema.ExpenseCreate,
+                        db: Session = Depends(get_db),
+                        current_user: schema.User = Depends(get_current_user)
+                    ):
     # Check if category exists
     category = db.query(models.Category).filter(models.Category.name == expense.category_name).first()
-    
-    # If category doesn't exist, create it
+
     if not category:
         category = models.Category(name=expense.category_name)
         db.add(category)
         db.commit()
         db.refresh(category)
-        
-    # Add expense to table  
-    exp = models.Expense(name = expense.name,
-                         user_id = current_user.id,
-                         amount = expense.amount, 
-                         date = expense.date, 
-                         description = expense.description, 
-                         category_name = expense.category_name
-                         )
+
+    exp = models.Expense(
+        name=expense.name,
+        user_id=current_user.id,
+        amount=expense.amount,
+        date=expense.date,
+        description=expense.description,
+        category_name=expense.category_name
+    )
     db.add(exp)
     db.commit()
     db.refresh(exp)
-    return {"item added sucessfull": exp}
+    
+    return f"{expense.name} added {expense.name} in their Expense "
+    
+
+
 
 @app.get("/show_expense")
 async def show_expense(db : Session = Depends(get_db),
